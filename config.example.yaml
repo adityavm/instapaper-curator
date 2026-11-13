@@ -1,0 +1,17 @@
+# Free-text topics; the LLM judges matches.
+topics:
+  - Rust async internals and runtime design
+  - Database internals, SQLite, query planners
+  - Practical LLM agent engineering
+
+# Optional: pi model pattern (default: anthropic/claude-haiku-5-5)
+# model: anthropic/claude-haiku-5-5
+
+# Max candidate articles sent to the LLM per source per run
+maxCandidatesPerSource: 40
+
+sources:
+  - name: Hacker News best
+    url: https://hnrss.org/best
+  - name: Some blog index
+    url: https://example.com/blog   # RSS auto-discovered, else links are scraped
