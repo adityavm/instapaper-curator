@@ -1,6 +1,6 @@
 import { XMLParser } from "fast-xml-parser";
 
-export type Candidate = { url: string; title: string; snippet: string; date?: number };
+export type Candidate = { url: string; title: string; snippet: string; date?: number; legacyUrl?: string };
 
 const UA = "Mozilla/5.0 (compatible; instapaper-curator/0.1)";
 const xml = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_" });
@@ -12,13 +12,24 @@ const ts = (x: any): number | undefined => {
   const t = Date.parse(text(x));
   return Number.isNaN(t) ? undefined : t;
 };
-const strip = (s: string) =>
+export const strip = (s: string) =>
   s.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
 
 export async function get(url: string): Promise<string> {
   const res = await fetch(url, { headers: { "user-agent": UA }, signal: AbortSignal.timeout(30_000) });
   if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
   return res.text();
+}
+
+/** Techmeme items link to their own permalink; the real article URL is the headline link in the description. */
+function resolveTechmeme(link: string, rawDesc: string): { url: string; legacyUrl?: string } {
+  try {
+    if (!/(^|\.)techmeme\.com$/.test(new URL(link).host)) return { url: link };
+  } catch { return { url: link }; }
+  const m =
+    rawDesc.match(/<B>\s*<A\s[^>]*HREF=["']([^"']+)["']/i) ??
+    [...rawDesc.matchAll(/<A\s[^>]*HREF=["']([^"']+)["']/gi)].find((x) => !/techmeme\.com/i.test(x[1]!));
+  return m ? { url: m[1]!.trim(), legacyUrl: link } : { url: link };
 }
 
 export function parseFeed(body: string): Candidate[] | null {
@@ -28,7 +39,7 @@ export function parseFeed(body: string): Candidate[] | null {
     const items = arr(doc.rss?.channel?.item ?? doc["rdf:RDF"]?.item);
     return items
       .map((i: any) => ({
-        url: text(i.link).trim(),
+        ...resolveTechmeme(text(i.link).trim(), text(i.description)),
         title: strip(text(i.title)),
         snippet: strip(text(i.description ?? i["content:encoded"])).slice(0, 400),
         date: ts(i.pubDate ?? i["dc:date"]),
